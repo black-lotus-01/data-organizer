@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, XCircle, Loader2, Brain, Cpu, Cloud } from "lucide-react";
-import { AIProvider } from "@/types/archiver";
+import { AIProvider, OperationStatus } from "@/types/archiver";
+import { useApp } from "@/contexts/AppContext";
+import { aiService } from "@/services/aiService";
+import { createAIConnectionActivity, createAIDisconnectionActivity } from "@/services/activityManager";
 
 const OPENAI_MODELS = [
   'gpt-4o',
@@ -27,76 +30,31 @@ const OLLAMA_MODELS = [
 
 export const AISettings = () => {
   const { toast } = useToast();
-  const [providers, setProviders] = useState<AIProvider[]>([
-    {
-      id: 'openai',
-      name: 'OpenAI',
-      apiKey: '',
-      model: 'gpt-4o-mini',
-      isConnected: false
-    },
-    {
-      id: 'openrouter',
-      name: 'Open Router',
-      apiKey: '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',
-      baseUrl: 'https://openrouter.ai/api/v1',
-      model: 'meta-llama/llama-4-maverick:free',
-      isConnected: false
-    },
-    {
-      id: 'ollama',
-      name: 'Ollama (Local)',
-      apiKey: '',
-      baseUrl: 'http://localhost:11434',
-      model: 'llama3.2',
-      isConnected: false
-    }
-  ]);
-
+  const { state, updateProvider, setCurrentProvider, addActivityRecord } = useApp();
   const [testing, setTesting] = useState<Record<string, boolean>>({});
 
   const testConnection = async (providerId: string) => {
     setTesting(prev => ({ ...prev, [providerId]: true }));
     
-    const provider = providers.find(p => p.id === providerId);
+    const provider = state.providers.find(p => p.id === providerId);
     if (!provider) return;
 
     try {
-      let isValid = false;
+      const isValid = await aiService.testConnection(provider);
       
-      if (providerId === 'openai') {
-        // Test OpenAI connection
-        if (provider.apiKey.trim()) {
-          const response = await fetch('https://api.openai.com/v1/models', {
-            headers: {
-              'Authorization': `Bearer ${provider.apiKey}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          isValid = response.ok;
-        }
-      } else if (providerId === 'openrouter') {
-        // Test Open Router connection
-        const response = await fetch('https://openrouter.ai/api/v1/models', {
-          headers: {
-            'Authorization': `Bearer ${provider.apiKey}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        isValid = response.ok;
-      } else if (providerId === 'ollama') {
-        // Test Ollama connection
-        try {
-          const response = await fetch(`${provider.baseUrl}/api/tags`);
-          isValid = response.ok;
-        } catch (error) {
-          isValid = false;
-        }
-      }
-
-      setProviders(prev => prev.map(p => 
-        p.id === providerId ? { ...p, isConnected: isValid } : p
+      updateProvider(providerId, { isConnected: isValid });
+      
+      // Log activity
+      addActivityRecord(createAIConnectionActivity(
+        provider.name, 
+        isValid ? OperationStatus.COMPLETED : OperationStatus.FAILED,
+        isValid ? undefined : 'Connection test failed'
       ));
+
+      // Set as current provider if connected successfully
+      if (isValid && !state.currentProvider) {
+        setCurrentProvider({ ...provider, isConnected: true });
+      }
 
       toast({
         title: isValid ? "Connection successful" : "Connection failed",
@@ -107,8 +65,12 @@ export const AISettings = () => {
       });
 
     } catch (error) {
-      setProviders(prev => prev.map(p => 
-        p.id === providerId ? { ...p, isConnected: false } : p
+      updateProvider(providerId, { isConnected: false });
+      
+      addActivityRecord(createAIConnectionActivity(
+        provider.name, 
+        OperationStatus.FAILED, 
+        error instanceof Error ? error.message : 'Unknown error'
       ));
       
       toast({
@@ -121,10 +83,14 @@ export const AISettings = () => {
     }
   };
 
-  const updateProvider = (providerId: string, updates: Partial<AIProvider>) => {
-    setProviders(prev => prev.map(p => 
-      p.id === providerId ? { ...p, ...updates, isConnected: false } : p
-    ));
+  const handleProviderUpdate = (providerId: string, updates: Partial<AIProvider>) => {
+    updateProvider(providerId, { ...updates, isConnected: false });
+    
+    // If this was the current provider, disconnect it
+    if (state.currentProvider?.id === providerId) {
+      setCurrentProvider(null);
+      addActivityRecord(createAIDisconnectionActivity(state.currentProvider.name));
+    }
   };
 
   const getProviderIcon = (providerId: string) => {
@@ -146,7 +112,7 @@ export const AISettings = () => {
       </div>
 
       <div className="grid gap-6">
-        {providers.map((provider) => (
+        {state.providers.map((provider) => (
           <Card key={provider.id}>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -178,7 +144,7 @@ export const AISettings = () => {
                     id={`${provider.id}-api-key`}
                     type="password"
                     value={provider.apiKey}
-                    onChange={(e) => updateProvider(provider.id, { apiKey: e.target.value })}
+                    onChange={(e) => handleProviderUpdate(provider.id, { apiKey: e.target.value })}
                     placeholder={provider.id === 'openrouter' ? 'Pre-filled with provided key' : 'Enter your API key'}
                     disabled={provider.id === 'openrouter'}
                   />
@@ -190,8 +156,8 @@ export const AISettings = () => {
                   <Label htmlFor={`${provider.id}-base-url`}>Base URL</Label>
                   <Input
                     id={`${provider.id}-base-url`}
-                    value={provider.baseUrl}
-                    onChange={(e) => updateProvider(provider.id, { baseUrl: e.target.value })}
+                    value={provider.baseUrl || ''}
+                    onChange={(e) => handleProviderUpdate(provider.id, { baseUrl: e.target.value })}
                     placeholder="https://api.example.com"
                   />
                 </div>
@@ -200,8 +166,8 @@ export const AISettings = () => {
               <div className="space-y-2">
                 <Label htmlFor={`${provider.id}-model`}>Model</Label>
                 <Select
-                  value={provider.model}
-                  onValueChange={(value) => updateProvider(provider.id, { model: value })}
+                  value={provider.model || ''}
+                  onValueChange={(value) => handleProviderUpdate(provider.id, { model: value })}
                 >
                   <SelectTrigger>
                     <SelectValue />

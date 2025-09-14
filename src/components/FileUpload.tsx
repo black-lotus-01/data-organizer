@@ -5,15 +5,20 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Upload, File, X, FolderOpen } from 'lucide-react';
-import { FileMetadata } from '@/types/archiver';
+import { useToast } from '@/hooks/use-toast';
+import { FileMetadata, ArchivePlan, OperationStatus } from '@/types/archiver';
+import { useApp } from '@/contexts/AppContext';
+import { aiService } from '@/services/aiService';
+import { createFileUploadActivity, createAnalysisActivity, createPlanGeneratedActivity } from '@/services/activityManager';
 
 interface FileUploadProps {
-  onFilesAnalyzed: (files: FileMetadata[]) => void;
+  onFilesAnalyzed: (plan: ArchivePlan) => void;
 }
 
 export const FileUpload = ({ onFilesAnalyzed }: FileUploadProps) => {
+  const { state, setAnalyzing, addActivityRecord } = useApp();
+  const { toast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
-  const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -30,36 +35,93 @@ export const FileUpload = ({ onFilesAnalyzed }: FileUploadProps) => {
   };
 
   const analyzeFiles = async () => {
+    if (!state.currentProvider) {
+      toast({
+        title: "No AI Provider Connected",
+        description: "Please connect an AI provider in Settings before analyzing files.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setAnalyzing(true);
     setProgress(0);
 
-    const analyzedFiles: FileMetadata[] = [];
+    try {
+      // Log file upload activity
+      addActivityRecord(createFileUploadActivity(files.length));
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+      // Create file metadata
+      const analyzedFiles: FileMetadata[] = [];
       
-      // Simulate file analysis
-      const fileContent = await readFileContent(file);
-      const sha256 = await generateHash(file);
-      
-      const metadata: FileMetadata = {
-        path: file.name,
-        mime: file.type || 'application/octet-stream',
-        size: file.size,
-        mtime: new Date(file.lastModified).toISOString(),
-        sha256,
-        excerpt: fileContent.substring(0, 300),
-        metadata: {
-          originalFile: file
-        }
-      };
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        const fileContent = await readFileContent(file);
+        const sha256 = await generateHash(file);
+        
+        const metadata: FileMetadata = {
+          path: file.name,
+          mime: file.type || 'application/octet-stream',
+          size: file.size,
+          mtime: new Date(file.lastModified).toISOString(),
+          sha256,
+          excerpt: fileContent.substring(0, 300),
+          metadata: {
+            originalFile: file
+          }
+        };
 
-      analyzedFiles.push(metadata);
-      setProgress(((i + 1) / files.length) * 100);
+        analyzedFiles.push(metadata);
+        setProgress(((i + 1) / files.length) * 50); // 50% for file processing
+      }
+
+      // Log analysis start
+      addActivityRecord(createAnalysisActivity(files.length, OperationStatus.IN_PROGRESS));
+
+      // Get existing folder names from saved plans
+      const existingFolders = state.savedPlans.flatMap(plan => 
+        plan.plan.folders.map(folder => folder.name)
+      );
+
+      // Analyze with AI
+      const result = await aiService.analyzeFiles({
+        files: analyzedFiles,
+        provider: state.currentProvider,
+        existingFolders: [...new Set(existingFolders)] // Remove duplicates
+      });
+
+      setProgress(100);
+
+      // Log successful analysis
+      addActivityRecord(createAnalysisActivity(files.length, OperationStatus.COMPLETED));
+      addActivityRecord(createPlanGeneratedActivity(result.plan.folders.length));
+
+      toast({
+        title: "Analysis Complete",
+        description: `Generated archive plan with ${result.plan.folders.length} folders`,
+      });
+
+      onFilesAnalyzed(result.plan);
+
+    } catch (error) {
+      console.error('Analysis failed:', error);
+      
+      // Log failed analysis
+      addActivityRecord(createAnalysisActivity(
+        files.length, 
+        OperationStatus.FAILED, 
+        error instanceof Error ? error.message : 'Unknown error'
+      ));
+
+      toast({
+        title: "Analysis Failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setAnalyzing(false);
     }
-
-    setAnalyzing(false);
-    onFilesAnalyzed(analyzedFiles);
   };
 
   const readFileContent = (file: File): Promise<string> => {
@@ -133,14 +195,14 @@ export const FileUpload = ({ onFilesAnalyzed }: FileUploadProps) => {
               </h3>
               <Button
                 onClick={analyzeFiles}
-                disabled={analyzing}
+                disabled={state.isAnalyzing || !state.currentProvider}
                 className="ml-4"
               >
-                {analyzing ? 'Analyzing...' : 'Analyze Files'}
+                {state.isAnalyzing ? 'Analyzing...' : 'Analyze Files'}
               </Button>
             </div>
 
-            {analyzing && (
+            {state.isAnalyzing && (
               <div className="mb-4">
                 <div className="flex justify-between text-sm mb-2">
                   <span>Analyzing files...</span>

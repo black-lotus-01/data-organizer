@@ -6,89 +6,17 @@ import { AISettings } from "@/components/Settings/AISettings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Brain, FolderOpen, Sparkles, FileSearch, Settings } from "lucide-react";
+import { Brain, FolderOpen, Sparkles, FileSearch, Settings, History } from "lucide-react";
 import { FileMetadata, ArchivePlan } from "@/types/archiver";
+import { useApp } from "@/contexts/AppContext";
+import { formatActivityTime, getActivityIcon } from "@/services/activityManager";
 
 const Index = () => {
-  const [currentView, setCurrentView] = useState<'home' | 'upload' | 'plan' | 'settings'>('home');
-  const [analyzedFiles, setAnalyzedFiles] = useState<FileMetadata[]>([]);
-  const [archivePlan, setArchivePlan] = useState<ArchivePlan | null>(null);
+  const { state, setCurrentPlan } = useApp();
+  const [currentView, setCurrentView] = useState<'home' | 'upload' | 'plan' | 'settings' | 'activity'>('home');
 
-  const handleFilesAnalyzed = async (files: FileMetadata[]) => {
-    setAnalyzedFiles(files);
-    
-    // Generate mock archive plan for demo
-    const mockPlan: ArchivePlan = {
-      root_path: "/uploaded-files",
-      summary: {
-        total_files: files.length,
-        total_size: files.reduce((acc, f) => acc + f.size, 0),
-        detected_topics: ["Documents", "Images", "Code", "Archives"],
-        sensitive_count: 0,
-        recommended_folders: 4
-      },
-      folders: [
-        {
-          name: "documents-2024",
-          display_name: "Documents 2024",
-          rationale: "Text documents and PDFs grouped by creation year",
-          confidence: 0.92,
-          files: files.filter(f => f.mime.includes('text') || f.mime.includes('pdf')).map(f => ({
-            path: f.path,
-            action: 'move' as const,
-            reason: "Document type detected",
-            confidence: 0.89
-          }))
-        },
-        {
-          name: "media-files",
-          display_name: "Media Files",
-          rationale: "Images, videos, and audio files organized by type",
-          confidence: 0.87,
-          files: files.filter(f => f.mime.startsWith('image') || f.mime.startsWith('video') || f.mime.startsWith('audio')).map(f => ({
-            path: f.path,
-            action: 'move' as const,
-            reason: "Media type detected",
-            confidence: 0.85
-          }))
-        }
-      ],
-      operations: [
-        {
-          op: 'create_folder',
-          target: 'documents-2024',
-          items: [],
-          estimated_effect: { size_change: 0 }
-        },
-        {
-          op: 'create_folder',
-          target: 'media-files',
-          items: [],
-          estimated_effect: { size_change: 0 }
-        }
-      ],
-      dedupe: {
-        duplicates: [],
-        strategy_used: 'link'
-      },
-      sensitive: [],
-      rollback: {
-        instructions: ["Restore from backup", "Revert folder structure"],
-        timestamped_log_reference: "archive-" + Date.now()
-      },
-      metrics: {
-        confidence_mean: 0.89,
-        folders_created: 2,
-        files_moved: files.length
-      },
-      errors: [],
-      config_used: {
-        auto_confirm: false,
-        confidence_threshold: 0.45
-      }
-    };
-
-    setArchivePlan(mockPlan);
+  const handleFilesAnalyzed = async (plan: ArchivePlan) => {
+    setCurrentPlan(plan);
     setCurrentView('plan');
   };
 
@@ -97,18 +25,59 @@ const Index = () => {
       case 'upload':
         return <FileUpload onFilesAnalyzed={handleFilesAnalyzed} />;
       case 'plan':
-        return archivePlan ? (
+        return state.currentPlan ? (
           <ArchivePlanView
-            plan={archivePlan}
-            onExecute={() => {
-              // Handle plan execution
-              setCurrentView('home');
-            }}
+            plan={state.currentPlan}
+            onExecute={() => setCurrentView('home')}
             onCancel={() => setCurrentView('home')}
           />
         ) : null;
       case 'settings':
         return <AISettings />;
+      case 'activity':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">Recent Activity</h2>
+              <p className="text-muted-foreground">
+                Track all your archiving operations and AI connections
+              </p>
+            </div>
+            <div className="space-y-4">
+              {state.activityHistory.length === 0 ? (
+                <Card>
+                  <CardContent className="p-6 text-center text-muted-foreground">
+                    No recent activity
+                  </CardContent>
+                </Card>
+              ) : (
+                state.activityHistory.map((activity) => (
+                  <Card key={activity.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start space-x-3">
+                        <span className="text-lg">{getActivityIcon(activity.type)}</span>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium">{activity.title}</h4>
+                            <span className="text-sm text-muted-foreground">
+                              {formatActivityTime(activity.timestamp)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {activity.description}
+                          </p>
+                          <Badge variant="outline" className="mt-2">
+                            {activity.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </div>
+        );
       default:
         return (
           <div className="space-y-8">
@@ -154,16 +123,18 @@ const Index = () => {
                 <CardContent>
                   <div className="flex justify-between items-center mb-4">
                     <span className="text-sm">Connected Providers</span>
-                    <Badge variant="secondary">3</Badge>
+                    <Badge variant="secondary">
+                      {state.providers.filter(p => p.isConnected).length}/{state.providers.length}
+                    </Badge>
                   </div>
                   <Button variant="outline" className="w-full">Configure</Button>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentView('activity')}>
                 <CardHeader>
                   <CardTitle className="flex items-center">
-                    <Settings className="h-5 w-5 mr-2" />
+                    <History className="h-5 w-5 mr-2" />
                     Recent Activity
                   </CardTitle>
                   <CardDescription>
@@ -171,9 +142,11 @@ const Index = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center text-muted-foreground text-sm">
-                    No recent activity
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-sm">Activity Records</span>
+                    <Badge variant="secondary">{state.activityHistory.length}</Badge>
                   </div>
+                  <Button variant="outline" className="w-full">View History</Button>
                 </CardContent>
               </Card>
             </div>
