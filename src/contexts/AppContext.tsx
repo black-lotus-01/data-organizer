@@ -31,9 +31,9 @@ type AppAction =
 const initialState: AppState = {
   currentProvider: null,
   providers: [
-    { id: 'openai', name: 'OpenAI', apiKey: '', isConnected: false },
+    { id: 'openai', name: 'OpenAI', apiKey: '', model: 'gpt-4o-mini', isConnected: false },
     { id: 'openrouter', name: 'OpenRouter', apiKey: '', baseUrl: 'https://openrouter.ai/api/v1', model: 'meta-llama/llama-4-maverick:free', isConnected: false },
-    { id: 'ollama', name: 'Ollama', apiKey: '', baseUrl: 'http://localhost:11434', isConnected: false }
+    { id: 'ollama', name: 'Ollama', apiKey: '', baseUrl: 'http://localhost:11434', model: 'llama3.2', isConnected: false }
   ],
   currentPlan: null,
   savedPlans: [],

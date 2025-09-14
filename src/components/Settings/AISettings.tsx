@@ -14,10 +14,14 @@ import { aiService } from "@/services/aiService";
 import { createAIConnectionActivity, createAIDisconnectionActivity } from "@/services/activityManager";
 
 const OPENAI_MODELS = [
-  'gpt-4o',
+  'gpt-5-2025-08-07',
+  'gpt-5-mini-2025-08-07',
+  'gpt-5-nano-2025-08-07',
+  'gpt-4.1-2025-04-14',
+  'o3-2025-04-16',
+  'o4-mini-2025-04-16',
   'gpt-4o-mini',
-  'gpt-4-turbo',
-  'gpt-3.5-turbo'
+  'gpt-4o'
 ];
 
 const OLLAMA_MODELS = [
@@ -145,8 +149,7 @@ export const AISettings = () => {
                     type="password"
                     value={provider.apiKey}
                     onChange={(e) => handleProviderUpdate(provider.id, { apiKey: e.target.value })}
-                    placeholder={provider.id === 'openrouter' ? 'Pre-filled with provided key' : 'Enter your API key'}
-                    disabled={provider.id === 'openrouter'}
+                    placeholder="Enter your API key"
                   />
                 </div>
               )}
@@ -193,12 +196,12 @@ export const AISettings = () => {
               <div className="flex justify-between items-center">
                 <div className="text-sm text-muted-foreground">
                   {provider.id === 'openai' && 'Requires valid OpenAI API key'}
-                  {provider.id === 'openrouter' && 'Uses pre-configured free tier'}
+                  {provider.id === 'openrouter' && 'Requires valid OpenRouter API key'}
                   {provider.id === 'ollama' && 'Requires Ollama running locally'}
                 </div>
                 <Button
                   onClick={() => testConnection(provider.id)}
-                  disabled={testing[provider.id] || (provider.id === 'openai' && !provider.apiKey.trim())}
+                  disabled={testing[provider.id] || (provider.id !== 'ollama' && !provider.apiKey.trim())}
                   variant="outline"
                   size="sm"
                 >

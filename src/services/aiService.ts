@@ -13,6 +13,11 @@ export interface AIAnalysisResponse {
 
 class AIService {
   private async makeRequest(provider: AIProvider, messages: any[]): Promise<any> {
+    // Validate API key for non-Ollama providers
+    if (provider.id !== 'ollama' && !provider.apiKey?.trim()) {
+      throw new Error('API key is required');
+    }
+
     const baseUrl = provider.baseUrl || this.getDefaultBaseUrl(provider.id);
     const endpoint = provider.id === 'ollama' ? '/api/chat' : '/chat/completions';
     
@@ -33,8 +38,8 @@ class AIService {
       'Content-Type': 'application/json'
     };
 
-    if (provider.id !== 'ollama') {
-      headers['Authorization'] = `Bearer ${provider.apiKey}`;
+    if (provider.id !== 'ollama' && provider.apiKey?.trim()) {
+      headers['Authorization'] = `Bearer ${provider.apiKey.trim()}`;
     }
 
     const response = await fetch(`${baseUrl}${endpoint}`, {
@@ -66,13 +71,13 @@ class AIService {
   private getDefaultModel(providerId: string): string {
     switch (providerId) {
       case 'openai':
-        return 'gpt-4o-mini';
+        return 'gpt-5-mini-2025-08-07';
       case 'openrouter':
         return 'meta-llama/llama-4-maverick:free';
       case 'ollama':
         return 'llama3.2';
       default:
-        return 'gpt-4o-mini';
+        return 'gpt-5-mini-2025-08-07';
     }
   }
 
