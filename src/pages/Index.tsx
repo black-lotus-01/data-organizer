@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Brain, FolderOpen, Sparkles, FileSearch, Settings, History } from "lucide-react";
-import { FileMetadata, ArchivePlan } from "@/types/archiver";
 import { useApp } from "@/contexts/AppContext";
 import { formatActivityTime, getActivityIcon } from "@/services/activityManager";
 
@@ -15,15 +14,10 @@ const Index = () => {
   const { state, setCurrentPlan } = useApp();
   const [currentView, setCurrentView] = useState<'home' | 'upload' | 'plan' | 'settings' | 'activity'>('home');
 
-  const handleFilesAnalyzed = async (plan: ArchivePlan) => {
-    setCurrentPlan(plan);
-    setCurrentView('plan');
-  };
-
   const renderContent = () => {
     switch (currentView) {
       case 'upload':
-        return <FileUpload onFilesAnalyzed={handleFilesAnalyzed} />;
+        return <FileUpload />;
       case 'plan':
         return state.currentPlan ? (
           <ArchivePlanView
@@ -99,14 +93,14 @@ const Index = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center">
                     <FileSearch className="h-5 w-5 mr-2" />
-                    Analyze Files
+                    Organize Files
                   </CardTitle>
                   <CardDescription>
-                    Upload and analyze files for intelligent organization
+                    Upload files and organize them with AI recommendations
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button className="w-full">Start Analysis</Button>
+                  <Button className="w-full">Start Organizing</Button>
                 </CardContent>
               </Card>
 

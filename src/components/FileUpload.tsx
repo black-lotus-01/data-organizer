@@ -4,15 +4,17 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Upload, File, X, FolderOpen } from 'lucide-react';
+import { Upload, File, X, FolderOpen, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { FileMetadata, ArchivePlan, OperationStatus } from '@/types/archiver';
 import { useApp } from '@/contexts/AppContext';
 import { aiService } from '@/services/aiService';
+import { fileOrganizer } from '@/services/fileOrganizer';
+import { LocationPicker } from '@/components/LocationPicker';
 import { createFileUploadActivity, createAnalysisActivity, createPlanGeneratedActivity } from '@/services/activityManager';
 
 interface FileUploadProps {
-  onFilesAnalyzed: (plan: ArchivePlan) => void;
+  onFilesAnalyzed?: (plan: ArchivePlan) => void;
 }
 
 export const FileUpload = ({ onFilesAnalyzed }: FileUploadProps) => {
@@ -20,6 +22,8 @@ export const FileUpload = ({ onFilesAnalyzed }: FileUploadProps) => {
   const { toast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState(0);
+  const [locationSelected, setLocationSelected] = useState(false);
+  const [isOrganizing, setIsOrganizing] = useState(false);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setFiles(prev => [...prev, ...acceptedFiles]);
@@ -34,17 +38,26 @@ export const FileUpload = ({ onFilesAnalyzed }: FileUploadProps) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const analyzeFiles = async () => {
+  const organizeFiles = async () => {
     if (!state.currentProvider) {
       toast({
         title: "No AI Provider Connected",
-        description: "Please connect an AI provider in Settings before analyzing files.",
+        description: "Please connect an AI provider in Settings before organizing files.",
         variant: "destructive"
       });
       return;
     }
 
-    setAnalyzing(true);
+    if (!fileOrganizer.isLocationSelected()) {
+      toast({
+        title: "No Location Selected",
+        description: "Please select a location where files will be organized.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsOrganizing(true);
     setProgress(0);
 
     try {
@@ -73,39 +86,57 @@ export const FileUpload = ({ onFilesAnalyzed }: FileUploadProps) => {
         };
 
         analyzedFiles.push(metadata);
-        setProgress(((i + 1) / files.length) * 50); // 50% for file processing
+        setProgress(((i + 1) / files.length) * 30); // 30% for file processing
       }
 
       // Log analysis start
       addActivityRecord(createAnalysisActivity(files.length, OperationStatus.IN_PROGRESS));
 
-      // Get existing folder names from saved plans
-      const existingFolders = state.savedPlans.flatMap(plan => 
-        plan.plan.folders.map(folder => folder.name)
-      );
+      // Get existing folder names from previous organizations
+      const existingFolders = Array.from(new Set([
+        ...state.savedPlans.flatMap(plan => plan.plan.folders.map(folder => folder.name))
+      ]));
 
-      // Analyze with AI
-      const result = await aiService.analyzeFiles({
+      setProgress(40);
+
+      // Get AI folder recommendations
+      const recommendations = await aiService.getFolderRecommendations({
         files: analyzedFiles,
         provider: state.currentProvider,
-        existingFolders: [...new Set(existingFolders)] // Remove duplicates
+        existingFolders
       });
+
+      setProgress(60);
+
+      toast({
+        title: "AI Analysis Complete",
+        description: `Got ${recommendations.recommendations.length} folder recommendations`,
+      });
+
+      // Organize files using recommendations
+      const organizationResult = await fileOrganizer.organizeFiles(
+        recommendations.recommendations,
+        analyzedFiles
+      );
 
       setProgress(100);
 
-      // Log successful analysis
-      addActivityRecord(createAnalysisActivity(files.length, OperationStatus.COMPLETED));
-      addActivityRecord(createPlanGeneratedActivity(result.plan.folders.length));
+      if (organizationResult.success) {
+        addActivityRecord(createAnalysisActivity(files.length, OperationStatus.COMPLETED));
+        
+        toast({
+          title: "Files Organized Successfully!",
+          description: `Created ${organizationResult.foldersCreated.length} folders and organized ${organizationResult.filesOrganized} files`,
+        });
 
-      toast({
-        title: "Analysis Complete",
-        description: `Generated archive plan with ${result.plan.folders.length} folders`,
-      });
-
-      onFilesAnalyzed(result.plan);
+        // Clear files after successful organization
+        setFiles([]);
+      } else {
+        throw new Error(`Organization completed with errors: ${organizationResult.errors.join(', ')}`);
+      }
 
     } catch (error) {
-      console.error('Analysis failed:', error);
+      console.error('Organization failed:', error);
       
       // Log failed analysis
       addActivityRecord(createAnalysisActivity(
@@ -115,12 +146,13 @@ export const FileUpload = ({ onFilesAnalyzed }: FileUploadProps) => {
       ));
 
       toast({
-        title: "Analysis Failed",
+        title: "Organization Failed",
         description: error instanceof Error ? error.message : "Unknown error occurred",
         variant: "destructive"
       });
     } finally {
-      setAnalyzing(false);
+      setIsOrganizing(false);
+      setProgress(0);
     }
   };
 
@@ -157,6 +189,10 @@ export const FileUpload = ({ onFilesAnalyzed }: FileUploadProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Location Selection */}
+      <LocationPicker onLocationSelected={setLocationSelected} />
+
+      {/* File Upload */}
       <Card>
         <CardContent className="p-6">
           <div
@@ -194,21 +230,29 @@ export const FileUpload = ({ onFilesAnalyzed }: FileUploadProps) => {
                 Selected Files ({files.length})
               </h3>
               <Button
-                onClick={analyzeFiles}
-                disabled={state.isAnalyzing || !state.currentProvider}
+                onClick={organizeFiles}
+                disabled={isOrganizing || !state.currentProvider || !locationSelected}
                 className="ml-4"
               >
-                {state.isAnalyzing ? 'Analyzing...' : 'Analyze Files'}
+                {isOrganizing ? 'Organizing...' : 'Organize Files'}
               </Button>
             </div>
 
-            {state.isAnalyzing && (
+            {isOrganizing && (
               <div className="mb-4">
                 <div className="flex justify-between text-sm mb-2">
-                  <span>Analyzing files...</span>
+                  <span>Organizing files...</span>
                   <span>{Math.round(progress)}%</span>
                 </div>
                 <Progress value={progress} />
+              </div>
+            )}
+
+            {!locationSelected && files.length > 0 && (
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800">
+                  Please select an organization location before proceeding
+                </p>
               </div>
             )}
 

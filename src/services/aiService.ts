@@ -11,6 +11,24 @@ export interface AIAnalysisResponse {
   confidence: number;
 }
 
+export interface FolderRecommendationRequest {
+  files: FileMetadata[];
+  provider: AIProvider;
+  existingFolders?: string[];
+}
+
+export interface AIFolderRecommendation {
+  folderName: string;
+  files: string[];
+  reason: string;
+  confidence: number;
+}
+
+export interface FolderRecommendationResponse {
+  recommendations: AIFolderRecommendation[];
+  confidence: number;
+}
+
 class AIService {
   private async makeRequest(provider: AIProvider, messages: any[]): Promise<any> {
     // Validate API key for non-Ollama providers
@@ -278,6 +296,77 @@ Existing folders to consider reusing: ${existingFolders.length > 0 ? existingFol
         max_folder_name_length: 50
       }
     };
+  }
+
+  async getFolderRecommendations(request: FolderRecommendationRequest): Promise<FolderRecommendationResponse> {
+    const { files, provider, existingFolders = [] } = request;
+
+    // Create simplified analysis prompt for folder recommendations
+    const fileDescriptions = files.map(file => ({
+      name: file.path,
+      type: file.mime,
+      size: file.size,
+      content_preview: this.getContentPreview(file)
+    }));
+
+    const systemPrompt = `You are a file organization assistant. Analyze the files and recommend folder names where each file should be placed.
+
+Rules:
+1. Create meaningful folder names based on content, not just file types
+2. Group similar files together logically
+3. Use descriptive but concise folder names (max 30 characters)
+4. Reuse existing folders when appropriate: ${existingFolders.join(', ')}
+5. Provide confidence scores (0.0-1.0) for all recommendations
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "recommendations": [
+    {
+      "folderName": "documents-2024",
+      "files": ["file1.txt", "file2.pdf"],
+      "reason": "These are document files from 2024",
+      "confidence": 0.85
+    }
+  ]
+}`;
+
+    const userPrompt = `Recommend folders for these files:
+
+${JSON.stringify(fileDescriptions, null, 2)}
+
+Existing folders to consider reusing: ${existingFolders.length > 0 ? existingFolders.join(', ') : 'None'}`;
+
+    try {
+      const response = await this.makeRequest(provider, [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ]);
+
+      const content = provider.id === 'ollama' 
+        ? response.message?.content 
+        : response.choices?.[0]?.message?.content;
+
+      if (!content) {
+        throw new Error('No response content from AI provider');
+      }
+
+      // Parse AI response
+      const aiResult = this.parseAIResponse(content);
+      
+      const recommendations: AIFolderRecommendation[] = aiResult.recommendations || [];
+      const confidence = recommendations.length > 0 
+        ? recommendations.reduce((sum, r) => sum + r.confidence, 0) / recommendations.length 
+        : 0;
+
+      return {
+        recommendations,
+        confidence
+      };
+
+    } catch (error) {
+      console.error('Folder recommendation failed:', error);
+      throw new Error(`Folder recommendation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   async testConnection(provider: AIProvider): Promise<boolean> {
