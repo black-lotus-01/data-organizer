@@ -3,75 +3,61 @@ import { Layout } from "@/components/Layout";
 import { FileUpload } from "@/components/FileUpload";
 import { ArchivePlanView } from "@/components/ArchivePlanView";
 import { AISettings } from "@/components/Settings/AISettings";
+import SavedPlans from "@/components/SavedPlans";
+import ActivityHistory from "@/components/ActivityHistory";
+import PlanExecutor from "@/components/PlanExecutor";
+import { LocationPicker } from "@/components/LocationPicker";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Brain, FolderOpen, Sparkles, FileSearch, Settings, History } from "lucide-react";
+import { Brain, FolderOpen, Sparkles, FileSearch, Settings, History, Archive, Play } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { formatActivityTime, getActivityIcon } from "@/services/activityManager";
 
 const Index = () => {
   const { state, setCurrentPlan } = useApp();
-  const [currentView, setCurrentView] = useState<'home' | 'upload' | 'plan' | 'settings' | 'activity'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'upload' | 'plan' | 'settings' | 'activity' | 'saved-plans' | 'executor'>('home');
 
   const renderContent = () => {
     switch (currentView) {
       case 'upload':
-        return <FileUpload />;
+        return (
+          <div className="space-y-6">
+            <LocationPicker onLocationSelected={() => {}} />
+            <FileUpload />
+          </div>
+        );
       case 'plan':
         return state.currentPlan ? (
           <ArchivePlanView
             plan={state.currentPlan}
-            onExecute={() => setCurrentView('home')}
-            onCancel={() => setCurrentView('home')}
+            onExecute={() => setCurrentView('executor')}
+            onCancel={() => {
+              setCurrentPlan(null);
+              setCurrentView('home');
+            }}
+          />
+        ) : null;
+      case 'executor':
+        return state.currentPlan ? (
+          <PlanExecutor
+            plan={state.currentPlan}
+            onComplete={() => {
+              setCurrentPlan(null);
+              setCurrentView('home');
+            }}
+            onCancel={() => {
+              setCurrentPlan(null);
+              setCurrentView('home');
+            }}
           />
         ) : null;
       case 'settings':
         return <AISettings />;
       case 'activity':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold tracking-tight">Recent Activity</h2>
-              <p className="text-muted-foreground">
-                Track all your archiving operations and AI connections
-              </p>
-            </div>
-            <div className="space-y-4">
-              {state.activityHistory.length === 0 ? (
-                <Card>
-                  <CardContent className="p-6 text-center text-muted-foreground">
-                    No recent activity
-                  </CardContent>
-                </Card>
-              ) : (
-                state.activityHistory.map((activity) => (
-                  <Card key={activity.id}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start space-x-3">
-                        <span className="text-lg">{getActivityIcon(activity.type)}</span>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-medium">{activity.title}</h4>
-                            <span className="text-sm text-muted-foreground">
-                              {formatActivityTime(activity.timestamp)}
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {activity.description}
-                          </p>
-                          <Badge variant="outline" className="mt-2">
-                            {activity.status}
-                          </Badge>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
-          </div>
-        );
+        return <ActivityHistory />;
+      case 'saved-plans':
+        return <SavedPlans />;
       default:
         return (
           <div className="space-y-8">
@@ -88,7 +74,7 @@ const Index = () => {
               </p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentView('upload')}>
                 <CardHeader>
                   <CardTitle className="flex items-center">
@@ -101,6 +87,25 @@ const Index = () => {
                 </CardHeader>
                 <CardContent>
                   <Button className="w-full">Start Organizing</Button>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setCurrentView('saved-plans')}>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Archive className="h-5 w-5 mr-2" />
+                    Saved Plans
+                  </CardTitle>
+                  <CardDescription>
+                    Manage your saved archive plans
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-sm">Saved Plans</span>
+                    <Badge variant="secondary">{state.savedPlans.length}</Badge>
+                  </div>
+                  <Button variant="outline" className="w-full">View Plans</Button>
                 </CardContent>
               </Card>
 
@@ -129,10 +134,10 @@ const Index = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center">
                     <History className="h-5 w-5 mr-2" />
-                    Recent Activity
+                    Activity History
                   </CardTitle>
                   <CardDescription>
-                    Latest archiving operations
+                    Track all archiving operations
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -144,6 +149,44 @@ const Index = () => {
                 </CardContent>
               </Card>
             </div>
+
+            {state.currentPlan && (
+              <Card className="border-primary bg-primary/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Play className="h-5 w-5 mr-2 text-primary" />
+                    Active Plan Ready
+                  </CardTitle>
+                  <CardDescription>
+                    You have an archive plan ready for execution
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div className="text-center">
+                      <div className="font-semibold">{state.currentPlan.summary.total_files}</div>
+                      <div className="text-muted-foreground">Files</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-semibold">{state.currentPlan.summary.recommended_folders}</div>
+                      <div className="text-muted-foreground">Folders</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-semibold">{Math.round(state.currentPlan.metrics.confidence_mean * 100)}%</div>
+                      <div className="text-muted-foreground">Confidence</div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={() => setCurrentView('plan')} className="flex-1">
+                      Review Plan
+                    </Button>
+                    <Button onClick={() => setCurrentView('executor')} variant="outline" className="flex-1">
+                      Execute Now
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         );
     }

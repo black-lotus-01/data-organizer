@@ -93,6 +93,22 @@ export const formatActivityTime = (timestamp: string): string => {
   return date.toLocaleDateString();
 };
 
+export const createFolderCreatedActivity = (folderName: string): Omit<ActivityRecord, 'id' | 'timestamp'> => ({
+  type: ActivityType.FOLDER_CREATED,
+  status: OperationStatus.COMPLETED,
+  title: 'Folder Created',
+  description: `Created folder: ${folderName}`,
+  metadata: { folderCount: 1 }
+});
+
+export const createFileMovedActivity = (fileName: string, destination: string): Omit<ActivityRecord, 'id' | 'timestamp'> => ({
+  type: ActivityType.FILE_MOVED,
+  status: OperationStatus.COMPLETED,
+  title: 'File Moved',
+  description: `Moved ${fileName} to ${destination}`,
+  metadata: { fileCount: 1 }
+});
+
 export const getActivityIcon = (type: ActivityType): string => {
   switch (type) {
     case ActivityType.FILE_UPLOAD:
