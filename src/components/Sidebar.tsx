@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { 
   FolderOpen, 
   Settings, 
@@ -9,24 +10,29 @@ import {
   ChevronRight,
   Archive,
   FileSearch,
-  History
+  History,
+  Layers,
+  Search,
+  Zap
 } from "lucide-react";
-import { useState } from "react";
 
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
+  currentView: string;
+  onViewChange: (view: string) => void;
 }
 
-export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
-  const [activeSection, setActiveSection] = useState('archive');
-
+export const Sidebar = ({ isOpen, onToggle, currentView, onViewChange }: SidebarProps) => {
   const sections = [
-    { id: 'archive', label: 'Smart Archive', icon: Archive },
-    { id: 'analyze', label: 'File Analysis', icon: FileSearch },
-    { id: 'history', label: 'History', icon: History },
-    { id: 'ai', label: 'AI Settings', icon: Brain },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'home', label: 'Dashboard', icon: Archive },
+    { id: 'upload', label: 'File Upload', icon: FileSearch },
+    { id: 'batch', label: 'Batch Process', icon: Layers },
+    { id: 'search', label: 'Advanced Search', icon: Search },
+    { id: 'rules', label: 'Custom Rules', icon: Zap },
+    { id: 'saved-plans', label: 'Saved Plans', icon: FolderOpen },
+    { id: 'activity', label: 'Activity History', icon: History },
+    { id: 'settings', label: 'AI Settings', icon: Brain },
   ];
 
   return (
@@ -39,47 +45,50 @@ export const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
       <div className="flex items-center justify-between p-4 border-b border-border">
         {isOpen && (
           <div className="flex items-center space-x-2">
-            <FolderOpen className="h-6 w-6 text-primary" />
+            <FolderOpen className="h-6 w-6 text-primary animate-bounce-soft" />
             <span className="font-semibold text-lg">Smart Archiver</span>
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onToggle}
-          className="h-8 w-8 p-0"
-        >
-          {isOpen ? (
-            <ChevronLeft className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          )}
-        </Button>
+        <div className="flex items-center gap-2">
+          {isOpen && <ThemeToggle />}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onToggle}
+            className="h-8 w-8 p-0 hover-scale"
+          >
+            {isOpen ? (
+              <ChevronLeft className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </div>
 
       <nav className="p-2 space-y-1">
         {sections.map((section) => {
           const Icon = section.icon;
-          const isActive = activeSection === section.id;
+          const isActive = currentView === section.id;
           
           return (
             <Button
               key={section.id}
               variant={isActive ? "secondary" : "ghost"}
               className={cn(
-                "w-full justify-start",
+                "w-full justify-start transition-all hover-scale",
                 !isOpen && "px-2",
-                isActive && "bg-secondary/80"
+                isActive && "bg-secondary/80 animate-scale-in"
               )}
-              onClick={() => setActiveSection(section.id)}
+              onClick={() => onViewChange(section.id)}
             >
-              <Icon className={cn("h-4 w-4", !isOpen && "mx-auto")} />
+              <Icon className={cn("h-4 w-4", !isOpen && "mx-auto", isActive && "text-primary")} />
               {isOpen && (
                 <>
-                  <span className="ml-3">{section.label}</span>
-                  {section.id === 'ai' && (
-                    <Badge variant="secondary" className="ml-auto text-xs">
-                      3
+                  <span className="ml-3 font-medium">{section.label}</span>
+                  {section.id === 'batch' && (
+                    <Badge variant="outline" className="ml-auto text-xs animate-pulse-soft">
+                      New
                     </Badge>
                   )}
                 </>
