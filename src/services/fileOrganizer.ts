@@ -163,3 +163,45 @@ class FileOrganizer {
 }
 
 export const fileOrganizer = new FileOrganizer();
+
+// Helper function for batch processing
+export async function createOrganizedFolders(
+  recommendations: Array<{ file: File; recommendedFolder: string }>
+): Promise<void> {
+  if (!fileOrganizer.isLocationSelected()) {
+    throw new Error('Please select an organization location first');
+  }
+
+  // Convert to the format expected by organizeFiles
+  const folderMap = new Map<string, File[]>();
+  
+  for (const rec of recommendations) {
+    if (!folderMap.has(rec.recommendedFolder)) {
+      folderMap.set(rec.recommendedFolder, []);
+    }
+    folderMap.get(rec.recommendedFolder)!.push(rec.file);
+  }
+
+  const folderRecommendations: FolderRecommendation[] = Array.from(folderMap.entries()).map(([folderName, files]) => ({
+    folderName,
+    files: files.map(f => f.name),
+    reason: `Batch processing recommendation`,
+    confidence: 0.8
+  }));
+
+  const fileMetadata: FileMetadata[] = recommendations.map(rec => ({
+    path: rec.file.name,
+    size: rec.file.size,
+    mime: rec.file.type,
+    mtime: new Date(rec.file.lastModified).toISOString(),
+    sha256: 'batch-processing-' + Date.now() + '-' + Math.random(), // Placeholder for batch processing
+    excerpt: '',
+    metadata: { originalFile: rec.file }
+  }));
+
+  const result = await fileOrganizer.organizeFiles(folderRecommendations, fileMetadata);
+  
+  if (!result.success) {
+    throw new Error(`Organization failed: ${result.errors.join(', ')}`);
+  }
+}

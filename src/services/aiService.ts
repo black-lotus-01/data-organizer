@@ -387,6 +387,62 @@ Existing folders to consider reusing: ${existingFolders.length > 0 ? existingFol
       return false;
     }
   }
+
+  // Single file analysis for batch processing
+  async processFileForAnalysis(file: File, provider: AIProvider): Promise<{ recommendedFolder: string; confidence: number }> {
+    const fileMetadata: FileMetadata = {
+      path: file.name,
+      size: file.size,
+      mime: file.type,
+      mtime: new Date(file.lastModified).toISOString(),
+      sha256: 'batch-processing-' + Date.now(), // Placeholder for batch processing
+      excerpt: await this.getFileExcerpt(file),
+      metadata: { originalFile: file }
+    };
+
+    try {
+      const response = await this.getFolderRecommendations({
+        files: [fileMetadata],
+        provider,
+        existingFolders: []
+      });
+
+      if (response.recommendations.length > 0) {
+        const recommendation = response.recommendations[0];
+        return {
+          recommendedFolder: recommendation.folderName,
+          confidence: recommendation.confidence
+        };
+      }
+
+      return {
+        recommendedFolder: 'Uncategorized',
+        confidence: 0.1
+      };
+    } catch (error) {
+      console.error('Single file analysis failed:', error);
+      return {
+        recommendedFolder: 'Uncategorized',
+        confidence: 0.1
+      };
+    }
+  }
+
+  private async getFileExcerpt(file: File): Promise<string> {
+    if (file.type.startsWith('text/')) {
+      try {
+        const text = await file.text();
+        return text.substring(0, 500);
+      } catch {
+        return '';
+      }
+    }
+    return `${file.type} file: ${file.name}`;
+  }
 }
 
 export const aiService = new AIService();
+
+// Export the specific function for batch processing
+export const processFileForAnalysis = (file: File, provider: AIProvider) => 
+  aiService.processFileForAnalysis(file, provider);
