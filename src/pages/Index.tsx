@@ -9,6 +9,7 @@ import PlanExecutor from "@/components/PlanExecutor";
 import BatchProcessor from "@/components/BatchProcessor";
 import CustomRules from "@/components/CustomRules";
 import AdvancedSearch from "@/components/AdvancedSearch";
+import { SecurityDashboard } from "@/components/SecurityDashboard";
 import { LocationPicker } from "@/components/LocationPicker";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import { formatActivityTime, getActivityIcon } from "@/services/activityManager"
 
 const Index = () => {
   const { state, setCurrentPlan } = useApp();
-  const [currentView, setCurrentView] = useState<'home' | 'upload' | 'plan' | 'settings' | 'activity' | 'saved-plans' | 'executor' | 'batch' | 'rules' | 'search'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'upload' | 'plan' | 'settings' | 'activity' | 'saved-plans' | 'executor' | 'batch' | 'rules' | 'search' | 'security'>('home');
 
   const renderContent = () => {
     switch (currentView) {
@@ -67,6 +68,8 @@ const Index = () => {
         return <CustomRules />;
       case 'search':
         return <AdvancedSearch />;
+      case 'security':
+        return <SecurityDashboard />;
       default:
         return (
           <div className="space-y-8">

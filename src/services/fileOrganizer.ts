@@ -1,4 +1,7 @@
 import { FileMetadata, ActivityType, OperationStatus } from '@/types/archiver';
+import { virusTotalService } from './virusTotalService';
+import { quarantineService } from './quarantineService';
+import { toast } from '@/components/ui/use-toast';
 
 // File System Access API types
 declare global {
@@ -67,6 +70,9 @@ class FileOrganizer {
     recommendations: FolderRecommendation[], 
     fileMetadata: FileMetadata[]
   ): Promise<OrganizationResult> {
+    // Security scan for executable files before organization
+    await this.performSecurityScan(fileMetadata);
+    
     if (!this.directoryHandle) {
       throw new Error('No organization location selected');
     }
@@ -159,6 +165,69 @@ class FileOrganizer {
   reset() {
     this.directoryHandle = null;
     this.createdFolders.clear();
+  }
+
+  private async performSecurityScan(fileMetadata: FileMetadata[]): Promise<void> {
+    const executableFiles = fileMetadata.filter(file => 
+      virusTotalService.isExecutableFile(file.path)
+    );
+
+    if (executableFiles.length === 0) {
+      return; // No executable files to scan
+    }
+
+    const apiKey = virusTotalService.getApiKey();
+    if (!apiKey) {
+      toast({
+        title: "Security Warning",
+        description: `${executableFiles.length} executable files detected. Configure VirusTotal API for security scanning.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Security Scan",
+      description: `Scanning ${executableFiles.length} executable files for threats...`,
+    });
+
+    for (const fileMetadata of executableFiles) {
+      try {
+        // Get the actual file from metadata if available
+        const originalFile = fileMetadata.metadata?.originalFile as File;
+        if (!originalFile) continue;
+
+        const threatAnalysis = await virusTotalService.scanFile(originalFile);
+        
+        if (threatAnalysis.isMalicious || threatAnalysis.threatLevel === 'suspicious') {
+          // Quarantine suspicious/malicious files
+          const quarantineId = await quarantineService.quarantineFile(
+            originalFile,
+            threatAnalysis,
+            fileMetadata.path
+          );
+          
+          toast({
+            title: "Threat Detected",
+            description: `File ${fileMetadata.path} has been quarantined (${threatAnalysis.threatLevel})`,
+            variant: "destructive",
+          });
+          
+          // Remove from organization process
+          const index = executableFiles.indexOf(fileMetadata);
+          if (index > -1) {
+            executableFiles.splice(index, 1);
+          }
+        }
+      } catch (error) {
+        console.error(`Security scan failed for ${fileMetadata.path}:`, error);
+        toast({
+          title: "Scan Error",
+          description: `Failed to scan ${fileMetadata.path}. File will be processed without security check.`,
+          variant: "destructive",
+        });
+      }
+    }
   }
 }
 

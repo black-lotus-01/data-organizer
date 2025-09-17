@@ -13,7 +13,8 @@ import {
   History,
   Layers,
   Search,
-  Zap
+  Zap,
+  ShieldCheck
 } from "lucide-react";
 
 interface SidebarProps {
@@ -30,6 +31,7 @@ export const Sidebar = ({ isOpen, onToggle, currentView, onViewChange }: Sidebar
     { id: 'batch', label: 'Batch Process', icon: Layers },
     { id: 'search', label: 'Advanced Search', icon: Search },
     { id: 'rules', label: 'Custom Rules', icon: Zap },
+    { id: 'security', label: 'Security', icon: ShieldCheck },
     { id: 'saved-plans', label: 'Saved Plans', icon: FolderOpen },
     { id: 'activity', label: 'Activity History', icon: History },
     { id: 'settings', label: 'AI Settings', icon: Brain },
