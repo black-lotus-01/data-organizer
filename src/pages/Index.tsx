@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from 'react';
 import { Layout } from "@/components/Layout";
 import { FileUpload } from "@/components/FileUpload";
 import { ArchivePlanView } from "@/components/ArchivePlanView";
@@ -10,6 +10,7 @@ import BatchProcessor from "@/components/BatchProcessor";
 import CustomRules from "@/components/CustomRules";
 import AdvancedSearch from "@/components/AdvancedSearch";
 import { SecurityDashboard } from "@/components/SecurityDashboard";
+import { ContentAnalyzer } from "@/components/ContentAnalyzer";
 import { LocationPicker } from "@/components/LocationPicker";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,8 @@ import { formatActivityTime, getActivityIcon } from "@/services/activityManager"
 
 const Index = () => {
   const { state, setCurrentPlan } = useApp();
-  const [currentView, setCurrentView] = useState<'home' | 'upload' | 'plan' | 'settings' | 'activity' | 'saved-plans' | 'executor' | 'batch' | 'rules' | 'search' | 'security'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'upload' | 'plan' | 'settings' | 'activity' | 'saved-plans' | 'executor' | 'batch' | 'rules' | 'search' | 'security' | 'analysis'>('home');
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const renderContent = () => {
     switch (currentView) {
@@ -28,7 +30,7 @@ const Index = () => {
         return (
           <div className="space-y-6">
             <LocationPicker onLocationSelected={() => {}} />
-            <FileUpload />
+            <FileUpload onFilesSelected={setSelectedFiles} />
           </div>
         );
       case 'plan':
@@ -70,6 +72,8 @@ const Index = () => {
         return <AdvancedSearch />;
       case 'security':
         return <SecurityDashboard />;
+      case 'analysis':
+        return <ContentAnalyzer files={selectedFiles} />;
       default:
         return (
           <div className="space-y-8">

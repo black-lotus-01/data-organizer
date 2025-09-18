@@ -28,6 +28,7 @@ export const Sidebar = ({ isOpen, onToggle, currentView, onViewChange }: Sidebar
   const sections = [
     { id: 'home', label: 'Dashboard', icon: Archive },
     { id: 'upload', label: 'File Upload', icon: FileSearch },
+    { id: 'analysis', label: 'Content Analysis', icon: Brain },
     { id: 'batch', label: 'Batch Process', icon: Layers },
     { id: 'search', label: 'Advanced Search', icon: Search },
     { id: 'rules', label: 'Custom Rules', icon: Zap },

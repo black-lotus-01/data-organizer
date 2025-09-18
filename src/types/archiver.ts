@@ -6,6 +6,7 @@ export interface FileMetadata {
   sha256: string;
   excerpt: string;
   metadata?: Record<string, any>;
+  contentAnalysis?: any;
 }
 
 export interface ArchiveConfig {

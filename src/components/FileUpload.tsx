@@ -15,9 +15,10 @@ import { createFileUploadActivity, createAnalysisActivity, createPlanGeneratedAc
 
 interface FileUploadProps {
   onFilesAnalyzed?: (plan: ArchivePlan) => void;
+  onFilesSelected?: (files: File[]) => void;
 }
 
-export const FileUpload = ({ onFilesAnalyzed }: FileUploadProps) => {
+export const FileUpload: React.FC<FileUploadProps> = ({ onFilesAnalyzed, onFilesSelected }) => {
   const { state, setAnalyzing, addActivityRecord } = useApp();
   const { toast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
@@ -26,8 +27,10 @@ export const FileUpload = ({ onFilesAnalyzed }: FileUploadProps) => {
   const [isOrganizing, setIsOrganizing] = useState(false);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
+    console.log('Files selected:', acceptedFiles);
     setFiles(prev => [...prev, ...acceptedFiles]);
-  }, []);
+    onFilesSelected?.(acceptedFiles);
+  }, [onFilesSelected]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

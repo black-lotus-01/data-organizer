@@ -1,7 +1,8 @@
-import { FileMetadata, ActivityType, OperationStatus } from '@/types/archiver';
+import { FileMetadata, ActivityType, OperationStatus, AIProvider } from '@/types/archiver';
 import { virusTotalService } from './virusTotalService';
 import { quarantineService } from './quarantineService';
-import { toast } from '@/components/ui/use-toast';
+import { contentAnalysisService } from './contentAnalysisService';
+import { toast } from '@/hooks/use-toast';
 
 // File System Access API types
 declare global {
@@ -37,6 +38,13 @@ export interface OrganizationResult {
   errors: string[];
 }
 
+export interface OrganizeOptions {
+  enableSecurity?: boolean;
+  securityLevel?: 'basic' | 'strict';
+  enableContentAnalysis?: boolean;
+  aiProvider?: AIProvider;
+}
+
 export interface FolderRecommendation {
   folderName: string;
   files: string[];
@@ -68,10 +76,16 @@ class FileOrganizer {
 
   async organizeFiles(
     recommendations: FolderRecommendation[], 
-    fileMetadata: FileMetadata[]
+    fileMetadata: FileMetadata[],
+    options: OrganizeOptions = {}
   ): Promise<OrganizationResult> {
     // Security scan for executable files before organization
     await this.performSecurityScan(fileMetadata);
+    
+    // Enhanced content analysis
+    if (options.enableContentAnalysis && options.aiProvider) {
+      await this.performContentAnalysis(fileMetadata, options.aiProvider);
+    }
     
     if (!this.directoryHandle) {
       throw new Error('No organization location selected');
@@ -226,6 +240,29 @@ class FileOrganizer {
           description: `Failed to scan ${fileMetadata.path}. File will be processed without security check.`,
           variant: "destructive",
         });
+      }
+    }
+  }
+
+  private async performContentAnalysis(fileMetadata: FileMetadata[], aiProvider: AIProvider): Promise<void> {
+    console.log('Performing enhanced content analysis...');
+    
+    for (const file of fileMetadata) {
+      try {
+        const originalFile = file.metadata?.originalFile as File;
+        if (!originalFile) continue;
+
+        const contentAnalysis = await contentAnalysisService.analyzeFile(originalFile, aiProvider);
+        file.contentAnalysis = contentAnalysis;
+        
+        console.log(`Content analysis completed for ${file.path}:`, {
+          fileType: contentAnalysis.fileType,
+          confidence: contentAnalysis.confidence,
+          aiClassification: contentAnalysis.aiClassification?.recommendedCategory
+        });
+        
+      } catch (error) {
+        console.error(`Content analysis failed for ${file.path}:`, error);
       }
     }
   }
