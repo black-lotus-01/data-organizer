@@ -19,6 +19,7 @@ export const SecurityDashboard: React.FC = () => {
   const [isTestingApiKey, setIsTestingApiKey] = useState(false);
   const [selectedFile, setSelectedFile] = useState<QuarantinedFile | null>(null);
   const [actionNotes, setActionNotes] = useState('');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     refreshQuarantinedFiles();
@@ -51,6 +52,7 @@ export const SecurityDashboard: React.FC = () => {
           title: "Success",
           description: "VirusTotal API key saved successfully",
         });
+        setIsSettingsOpen(false);
       } else {
         toast({
           title: "Error",
@@ -150,7 +152,7 @@ export const SecurityDashboard: React.FC = () => {
           <h2 className="text-3xl font-bold tracking-tight">Security Dashboard</h2>
           <p className="text-muted-foreground">Monitor threats and manage quarantined files</p>
         </div>
-        <Dialog>
+        <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
           <DialogTrigger asChild>
             <Button variant="outline" size="sm">
               <Settings className="h-4 w-4 mr-2" />
