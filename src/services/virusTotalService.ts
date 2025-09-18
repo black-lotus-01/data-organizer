@@ -1,4 +1,4 @@
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 
 export interface VirusTotalScanResult {
   sha256: string;
@@ -180,17 +180,15 @@ class VirusTotalService {
   }
 
   async testApiKey(apiKey: string): Promise<boolean> {
-    try {
-      const response = await fetch(
-        `${VirusTotalService.API_BASE_URL}/file/report?apikey=${apiKey}&resource=test`,
-        { method: 'GET' }
-      );
-      
-      // Even invalid resource should return 200 with proper API key
-      return response.ok;
-    } catch {
+    // Skip actual API validation due to CORS restrictions in browser
+    // Just validate format - VirusTotal API keys are 64 character hex strings
+    if (!apiKey || apiKey.length !== 64) {
       return false;
     }
+    
+    // Check if it's a valid hex string
+    const hexRegex = /^[a-fA-F0-9]+$/;
+    return hexRegex.test(apiKey);
   }
 }
 

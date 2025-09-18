@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { quarantineService, QuarantinedFile } from '@/services/quarantineService';
 import { virusTotalService } from '@/services/virusTotalService';
 
@@ -44,24 +44,24 @@ export const SecurityDashboard: React.FC = () => {
 
     setIsTestingApiKey(true);
     try {
-      const isValid = await virusTotalService.testApiKey(apiKey);
+      const isValid = await virusTotalService.testApiKey(apiKey.trim());
       if (isValid) {
-        virusTotalService.setApiKey(apiKey);
+        virusTotalService.setApiKey(apiKey.trim());
         toast({
           title: "Success",
-          description: "VirusTotal API key saved and validated",
+          description: "VirusTotal API key saved successfully",
         });
       } else {
         toast({
           title: "Error",
-          description: "Invalid API key. Please check and try again.",
+          description: "Invalid API key format. Please check and try again.",
           variant: "destructive",
         });
       }
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to validate API key",
+        description: "Failed to save API key",
         variant: "destructive",
       });
     } finally {
